@@ -13,8 +13,10 @@ class User(Base):#inherit kr rha h Base se, jiska matlab h ki ye class ek databa
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     is_admin = Column(Boolean, default=False)  # Admin flag for role-based access control
-    reset_token = Column(String(255), nullable=True)  # Token for password reset functionality
-    reset_token_expires = Column(DateTime, nullable=True)
+    # reset_token = Column(String(255), nullable=True)  # Token for password reset functionality
+    # reset_token_expires = Column(DateTime, nullable=True)
+    otp = Column(String(6), nullable=True)
+    otp_expiry = Column(DateTime, nullable=True)
     
 class Product(Base):
     __tablename__ = "products"

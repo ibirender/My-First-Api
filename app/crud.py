@@ -28,18 +28,19 @@ def create_user(db: Session, user: schemas.UserCreate):
     db.refresh(db_user)
     return db_user
 
-def authenticate_user(db: Session, username: str, password: str):
-    user = get_user_by_username(db, username)
-    if not user:
-        return False
-    
-    # DIRECT bcrypt verify
-    if bcrypt.checkpw(
+def authenticate_user(db: Session, identifier: str, password: str):
+      user = db.query(models.User).filter((models.User.username == identifier) |(models.User.email == identifier)).first()
+      if not user:
+          return False
+          # DIRECT bcrypt verify
+      if bcrypt.checkpw(
         password.strip().encode('utf-8'),
         user.hashed_password.encode('utf-8')
-    ):
+         ):
         return user
-    return False
+        return False
+
+    
 
 # Product CRUD operations (YEH WOHI RAHENGE)
 def create_product(db: Session, product: schemas.ProductCreate):

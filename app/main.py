@@ -6,6 +6,7 @@ from datetime import datetime,timedelta
 from app import models, schemas, crud  # Changed from . import to app import
 from app.database import engine, get_db  # Changed from .database to app.database
 import secrets
+import random
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials  
 from app.email_service import send_reset_email # ← YEH LINE ADD KARO
 
@@ -390,15 +391,17 @@ def forgot_password(
         return {"message": "If email exists, reset link sent"}
     
     # Token generate karo
-    token = secrets.token_urlsafe(32)
+    #token = secrets.token_urlsafe(32)
+    # OTP bhi generate karo
+    otp = str(random.randint(100000, 999999))
     
     # Token save karo with expiry (1 hour)
-    user.reset_token = token
-    user.reset_token_expires = datetime.utcnow() + timedelta(hours=1)
+    user.otp = otp
+    user.otp_expiry = datetime.utcnow() + timedelta(hours=.5)
     db.commit()
     
     # Background mein email bhejo
-    background_tasks.add_task(send_reset_email, email, token)
+    background_tasks.add_task(send_reset_email, email, otp)
     
     return {"message": "Reset link sent to your email"}
 
@@ -406,29 +409,29 @@ def forgot_password(
 # ===== RESET PASSWORD ENDPOINT =====
 @app.post("/reset-password")
 def reset_password(
-    token: str,
+    otp: str,
     new_password: str,
     db: Session = Depends(get_db)
 ):
     """Token verify karo aur password reset karo"""
     
     # Token se user dhundo
-    user = db.query(models.User).filter(models.User.reset_token == token).first()
+    user = db.query(models.User).filter(models.User.otp == otp).first()
     
     if not user:
-        raise HTTPException(status_code=400, detail="Invalid or expired token")
+        raise HTTPException(status_code=400, detail="Invalid or expired OTP")
     
     # Expiry check karo
-    if user.reset_token_expires < datetime.utcnow():
-        raise HTTPException(status_code=400, detail="Token has expired")
+    if user.otp_expiry < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="OTP has expired")
     
     # Naya password hash karo
     hashed = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt())
     user.hashed_password = hashed.decode('utf-8')
     
-    # Token clear karo (ek baar use)
-    user.reset_token = None
-    user.reset_token_expires = None
+    # OTP clear karo (ek baar use)
+    user.otp = None
+    user.otp_expiry = None
     
     db.commit()
     
