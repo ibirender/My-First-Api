@@ -1,0 +1,30 @@
+# app/models.py
+from sqlalchemy import Column, Integer, String, Float, DateTime, Text, Boolean
+from sqlalchemy.sql import func
+from .database import Base  # This imports Base from database.py
+
+class User(Base):#inherit kr rha h Base se, jiska matlab h ki ye class ek database table ban jayegi
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(100), unique=True, nullable=False, index=True)
+    username = Column(String(50), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    is_admin = Column(Boolean, default=False)  # Admin flag for role-based access control
+    reset_token = Column(String(255), nullable=True)  # Token for password reset functionality
+    reset_token_expires = Column(DateTime, nullable=True)
+    
+class Product(Base):
+    __tablename__ = "products"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    price = Column(Float, nullable=False)
+    quantity = Column(Integer, default=0)
+    category = Column(String(50), nullable=True)
+    is_available = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
