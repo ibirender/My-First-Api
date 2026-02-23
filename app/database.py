@@ -16,7 +16,10 @@ if not DATABASE_URL:
     print("⚠️ Using hardcoded database URL")
 
 # Create engine
-engine = create_engine(DATABASE_URL)
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True
+)
 
 # Create session factory(basically session generator h baad m just session local)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)#blue print keh skte ho 
