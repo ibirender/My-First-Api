@@ -45,6 +45,7 @@ class Order(Base):
     total_price = Column(Float, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     items = relationship("OrderItem", backref="order")
+    status = Column(String, default="pending")  # pending / completed / cancelled
 class OrderItem(Base):
     __tablename__ = "order_items"
 

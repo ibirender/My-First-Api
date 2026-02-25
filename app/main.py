@@ -25,6 +25,11 @@ app = FastAPI(
 )
 
 # ===== STEP 1: USER REGISTRATION (POST /register) =====
+ORDER_STATUS_FLOW = {
+    "pending": ["completed", "cancelled"],
+    "completed": [],
+    "cancelled": []
+}
 @app.post("/register", response_model=schemas.UserResponse, status_code=status.HTTP_201_CREATED)
 def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     """Register a new user"""
@@ -502,6 +507,7 @@ def my_orders(current_user: models.User = Depends(get_current_user), db: Session
             "order_id": order.id,
             "total_price": order.total_price,
             "created_at": order.created_at,
+            "status": order.status,
             "items": []
         }
         for item in order.items:
@@ -513,4 +519,49 @@ def my_orders(current_user: models.User = Depends(get_current_user), db: Session
             })
         result.append(order_data)
     return result
-        
+
+@app.put("/orders/{order_id}/status")
+def update_order_status(
+    order_id: int,
+    new_status: str,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    order = db.query(models.Order).filter(models.Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    current_status = order.status
+
+    if new_status not in ORDER_STATUS_FLOW.get(current_status, []):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot change status from {current_status} to {new_status}"
+        )
+
+    # 🚨 Prevent double refund
+    if new_status == "cancelled" and current_status != "cancelled":
+
+        # 1️⃣ Return stock
+        for item in order.items:
+            product = db.query(models.Product).filter(
+                models.Product.id == item.product_id
+            ).first()
+
+            if product:
+                product.stock += item.quantity
+
+        # 2️⃣ Refund to order owner
+        order_owner = db.query(models.User).filter(
+            models.User.id == order.user_id
+        ).first()
+
+        if order_owner:
+            order_owner.balance += order.total_price
+
+    order.status = new_status
+
+    db.commit()
+    db.refresh(order)
+    
+    return {"message": f"Order status updated to {new_status}", "order_id": order.id}
