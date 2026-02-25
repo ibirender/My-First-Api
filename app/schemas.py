@@ -1,6 +1,6 @@
 from pydantic import BaseModel,EmailStr
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 # User schemas (keep these for user registration)
 class UserBase(BaseModel):
@@ -46,7 +46,9 @@ class ProductBase(BaseModel):
     name: str
     description: Optional[str] = None
     price: float
-    quantity: Optional[int] = 0
+    stock: int = 0
+    category: Optional[str] = None
+    is_available: Optional[bool] = True
 
 class ProductCreate(ProductBase):
     pass
@@ -68,3 +70,12 @@ class ProductResponse(ProductBase):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+
+class OrderItemCreate(BaseModel):
+    product_id: int
+    stock: int
+
+
+class OrderCreate(BaseModel):
+    items: List[OrderItemCreate]

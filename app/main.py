@@ -1,6 +1,6 @@
 import bcrypt
 from fastapi import FastAPI, Depends, HTTPException, status,Header,BackgroundTasks
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session,relationship
 from typing import List
 from datetime import datetime,timedelta
 from app import models, schemas, crud  # Changed from . import to app import
@@ -226,9 +226,20 @@ def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)
     return crud.create_product(db=db, product=product)
 
 @app.get("/products/", response_model=List[schemas.ProductResponse])
-def read_products(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def read_products(skip: int = 0, limit: int = 20,min_price: float = None,max_price: float = None, db: Session = Depends(get_db)):
     """Get all products with pagination"""
-    products = crud.get_products(db, skip=skip, limit=limit)
+    query = db.query(models.Product)
+    products = db.query(models.Product)\
+                 .filter(models.Product.is_available == True)\
+                 .filter(models.Product.stock > 0)\
+                 .offset(skip)\
+                 .limit(limit)\
+                 .all()
+    if min_price is not None:
+        query = query.filter(models.Product.price >= min_price)
+    if max_price is not None:
+        query = query.filter(models.Product.price <= max_price)
+    products = query.all()
     return products
 
 @app.get("/products/{product_id}", response_model=schemas.ProductResponse)
@@ -437,3 +448,69 @@ def reset_password(
     
     return {"message": "Password updated successfully"}
 
+@app.post("/orders")
+def create_order(order: schemas.OrderCreate,
+                 current_user: models.User = Depends(get_current_user),
+                 db: Session = Depends(get_db)):
+
+    db_order = models.Order(user_id=current_user.id)
+    db.add(db_order)
+    db.flush()
+
+    total_price = 0
+
+    for item in order.items:
+
+        product = db.query(models.Product).filter(
+            models.Product.id == item.product_id
+        ).first()
+
+        if not product:
+            raise HTTPException(404, "Product not found")
+
+        if product.stock < item.stock:
+            raise HTTPException(400, "Not enough stock")
+
+        subtotal = product.price * item.stock
+        total_price += subtotal
+
+        if current_user.balance < total_price:
+            raise HTTPException(400, "Insufficient balance")
+
+        current_user.balance -= total_price
+
+        db.add(models.OrderItem(
+            order_id=db_order.id,
+            product_id=product.id,
+            quantity=item.stock,
+            price_at_purchase=product.price
+        ))
+
+        product.stock -= item.stock
+
+    db_order.total_price = total_price
+    db.commit()
+
+    return {"order_id": db_order.id, "total": total_price,"message": "Order created successfully"}
+
+@app.get("/orders")
+def my_orders(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    orders = db.query(models.Order).filter(models.Order.user_id == current_user.id).all()
+    result=[]
+    for order in orders:
+        order_data = {
+            "order_id": order.id,
+            "total_price": order.total_price,
+            "created_at": order.created_at,
+            "items": []
+        }
+        for item in order.items:
+            order_data["items"].append({
+                "product_name": item.product.name,
+                "quantity": item.quantity,
+                "price_at_purchase": item.price_at_purchase,
+                "subtotal": item.quantity * item.price_at_purchase
+            })
+        result.append(order_data)
+    return result
+        
